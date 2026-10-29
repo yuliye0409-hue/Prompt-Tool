@@ -102,6 +102,12 @@
       return false;
     }
     const parts = splitResult(text);
+    parts.zh = normalizeChinesePrompt(parts.zh);
+    if (/[a-z]/i.test(parts.zh)) {
+      $("outputZh").value = ""; $("outputEn").value = "";
+      feedback("中文提示词含有未翻译的英文，已拦截本次结果，请重新生成。", "error");
+      return false;
+    }
     $("outputZh").value = parts.zh; $("outputEn").value = parts.en;
     languageAreas.hidden = !(parts.zh.trim() || parts.en.trim());
     if (host.style.display !== "none") position();
@@ -109,6 +115,20 @@
       feedback("返回内容无法识别为中英文提示词，请重新生成。","error");
     } else if (text && (!parts.zh || !parts.en)) feedback("本次仅返回或识别到" + (parts.zh ? "中文" : "英文") + "提示词，请重新生成补齐另一语言。","error");
     return true;
+  }
+  function normalizeChinesePrompt(text) {
+    const translations = [
+      [/\bno placeholder text\b/gi, "不生成占位文字"],
+      [/\bno UI buttons\b/gi, "不生成界面按钮"],
+      [/\bno typography\b/gi, "不生成字体排版"],
+      [/\bno captions\b/gi, "不生成图注"],
+      [/\bno slogans\b/gi, "不生成标语"],
+      [/\bno watermark\b/gi, "不生成水印"],
+      [/\bno logo\b/gi, "不生成标志"],
+      [/\bno text\b/gi, "不生成文字"]
+    ];
+    for (const [pattern, replacement] of translations) text = text.replace(pattern, replacement);
+    return text;
   }
   async function copyLanguage(id, name) {
     const field = $(id);

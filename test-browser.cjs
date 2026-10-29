@@ -9,7 +9,7 @@ const assert = require("node:assert/strict");
     await page.evaluate(() => {
       const original = Element.prototype.attachShadow;
       Element.prototype.attachShadow = function(options) { return original.call(this,{...options,mode:"open"}); };
-      window.chrome = {runtime:{sendMessage(m,cb){ if(m.type==="startAnalysis") { window.finishAnalysis = () => cb({ok:true,result:"中文提示词：白色产品，柔和光线。\\nEnglish Prompt: White product in soft light."}); } else cb({ok:true,settings:{apiKey:"test"}}); }},storage:{local:{get:async()=>({})},onChanged:{addListener(){}}}};
+      window.chrome = {runtime:{sendMessage(m,cb){ if(m.type==="startAnalysis") { window.finishAnalysis = () => cb({ok:true,result:"中文提示词：白色产品，柔和光线。no text, no typography, no UI buttons, no placeholder text.\\nEnglish Prompt: White product in soft light. No text."}); } else cb({ok:true,settings:{apiKey:"test"}}); }},storage:{local:{get:async()=>({})},onChanged:{addListener(){}}}};
       window.openCount = 0;
       const animate = Element.prototype.animate;
       Element.prototype.animate = function(...args) { if(this.id==="ips-hover-host" && args[0][0].opacity===0) window.openCount++; return animate.apply(this,args); };
@@ -25,6 +25,7 @@ const assert = require("node:assert/strict");
     await page.waitForTimeout(100);
     assert(await panel.locator("#promptWorkspace").isVisible());
     assert((await panel.locator("#outputZh").inputValue()).includes("白色产品"));
+    assert(!/[a-z]/i.test(await panel.locator("#outputZh").inputValue()));
     assert((await panel.locator("#outputEn").inputValue()).includes("White product"));
     await page.mouse.move(175,230); await page.waitForTimeout(300);
     assert.equal(await page.evaluate(()=>window.openCount),1);
