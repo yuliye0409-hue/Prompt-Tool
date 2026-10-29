@@ -49,6 +49,8 @@
   };
   const originalLabel = $("output").parentElement;
   const languageAreas = document.createElement("div");
+  languageAreas.id = "promptWorkspace";
+  languageAreas.hidden = true;
   languageAreas.innerHTML = `<style>.language-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 7px;color:#d1d6df;font-size:12px}.language-head button{min-height:28px;padding:4px 9px;font-size:11px}.language-output{min-height:120px;line-height:1.7;padding:12px}details{margin-top:12px}summary{cursor:pointer;color:#aeb5c0;font-size:11px}summary:hover{color:#fff}</style><div class="language-head"><label for="outputZh">中文提示词</label><button id="copyZh">复制中文</button></div><textarea class="language-output" id="outputZh" aria-label="中文提示词" rows="5"></textarea><div class="language-head"><label for="outputEn">English Prompt</label><button id="copyEn">复制英文</button></div><textarea class="language-output" id="outputEn" aria-label="英文提示词" rows="5"></textarea>`;
   languageAreas.style.cssText = "margin-top:12px;padding:4px 12px 12px;border:1px solid #ffffff24;border-radius:8px;background:rgba(10,13,18,.18)";
   originalLabel.before(languageAreas);
@@ -93,6 +95,7 @@
     return result;
   }
   function showLanguages(text) {
+    languageAreas.hidden = true;
     if (/(?:Skill naming:|Plugin-provided MCP|<plugins_instructions>|"(?:output_tokens_details|input_tokens_details|web_search|usage)"\s*:)/i.test(text)) {
       $("outputZh").value = ""; $("outputEn").value = "";
       feedback("已拦截异常接口内容，请重新生成；持续出现请检查API服务商。","error");
@@ -100,6 +103,8 @@
     }
     const parts = splitResult(text);
     $("outputZh").value = parts.zh; $("outputEn").value = parts.en;
+    languageAreas.hidden = !(parts.zh.trim() || parts.en.trim());
+    if (host.style.display !== "none") position();
     if (text && !parts.zh && !parts.en) {
       feedback("返回内容无法识别为中英文提示词，请重新生成。","error");
     } else if (text && (!parts.zh || !parts.en)) feedback("本次仅返回或识别到" + (parts.zh ? "中文" : "英文") + "提示词，请重新生成补齐另一语言。","error");
@@ -265,6 +270,7 @@
     return {images:[{mimeType:blob.type,data:url.split(",")[1]}]};
   }
   $("generate").onclick=async()=>{
+    if (!busy) { languageAreas.hidden = true; position(); }
     if(busy||!source)return; busy=true;jobId=null;$("generate").disabled=true;$("stop").disabled=false;$("logic").disabled=true;feedback("正在读取图片…","busy");
     try{const input=await getInput();const response=await send({type:"startAnalysis",...input,sourceType:"pageHover",promptStyle:"universal",promptContext:{}});$("output").value=typeof response.result==="string"?response.result:"";feedback("生成完成","success");showLanguages($("output").value);remember();}
     catch(error){setApiSetupVisible(error.message.includes("API Key"));feedback(error.message,"error");}finally{busy=false;$("generate").disabled=false;$("stop").disabled=true;$("logic").disabled=false; if($("status").textContent === "生成完成") feedback("生成完成","success");}
