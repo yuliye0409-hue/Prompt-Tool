@@ -120,6 +120,14 @@
   const HOVER_DELAY_MS = 700;
   const LEAVE_DELAY_MS = 1000;
   let engaged = false;
+  let pointerInPanel = false;
+  function scheduleClose() {
+    if (leaveTimer || host.style.display === "none") return;
+    leaveTimer = setTimeout(() => {
+      leaveTimer = null;
+      if (!pointerInPanel && !candidate && !busy) closePanel();
+    }, LEAVE_DELAY_MS);
+  }
   let image, source, timer, leaveTimer, busy = false, jobId, motion, visibilityEpoch = 0, closing = false, dismissedImage = null;
   function finishInteraction() {
     dismissedImage = image;
@@ -129,8 +137,10 @@
   }
   const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   function closePanel() {
+    if (closing || host.style.display === "none") return;
     remember();
     clearTimeout(timer); clearTimeout(leaveTimer);
+    timer = null; leaveTimer = null; candidate = null;
     engaged = false;
     closing = true;
     const epoch = ++visibilityEpoch;
@@ -167,7 +177,8 @@
     if(busy && target!==image) return;
     clearTimeout(leaveTimer);
     if ($("hold").checked && host.style.display !== "none" && target !== image) return;
-    if (target === image && host.style.display !== "none" && !closing) { clearTimeout(leaveTimer); if (replay && !busy) playOpenAnimation(target); return; }
+    leaveTimer = null;
+    if (target === image && host.style.display !== "none" && !closing) return;
     const previousPosition = host.style.display !== "none" && target !== image ? {left:parseFloat(host.style.left),top:parseFloat(host.style.top)} : null;
     ++visibilityEpoch; motion?.cancel();
     closing = false;
@@ -194,7 +205,13 @@
   let candidate = null;
   function detectImage(event) {
     if (!hoverAllowed) return;
-    if (event.target === host || event.composedPath().includes(host) || event.target === launcher) { clearTimeout(leaveTimer); leaveTimer = setTimeout(() => { if (!busy && !$("hold").checked) closePanel(); }, LEAVE_DELAY_MS); return; }
+    if (event.target === host || event.composedPath().includes(host)) {
+      pointerInPanel = true; candidate = null;
+      clearTimeout(timer); clearTimeout(leaveTimer); leaveTimer = null;
+      return;
+    }
+    pointerInPanel = false;
+    if (event.target === launcher) return;
     const stack = document.elementsFromPoint(event.clientX, event.clientY);
     let target = stack.find(node => node instanceof HTMLImageElement);
     if (!target) {
@@ -205,10 +222,11 @@
     if (target) { const r = target.getBoundingClientRect(); if (r.width < 64 || r.height < 64) target = null; }
     if (dismissedImage && target === dismissedImage) return;
     if (target !== dismissedImage) dismissedImage = null;
-    if (target === candidate) { if (target) clearTimeout(leaveTimer); return; }
+    if (target === candidate) { if (target) { clearTimeout(leaveTimer); leaveTimer = null; } else scheduleClose(); return; }
     candidate = target; clearTimeout(timer);
     if (target) {
       clearTimeout(leaveTimer);
+      leaveTimer = null;
       const rect = target.getBoundingClientRect();
       launcher.style.display = "block";
       launcher.style.left = Math.max(4, Math.min(innerWidth - 38, rect.left + 8)) + "px";
@@ -216,7 +234,7 @@
       timer = setTimeout(() => { if (candidate === target && target.isConnected && !busy) open(target, true); }, HOVER_DELAY_MS);
     } else {
       launcher.style.display = "none";
-      leaveTimer = setTimeout(() => { if (!busy && !$("hold").checked) closePanel(); }, LEAVE_DELAY_MS);
+      scheduleClose();
     }
   }
   document.addEventListener("pointerover", detectImage, true);
@@ -227,7 +245,9 @@
     if (pointerFrame !== null) return;
     pointerFrame = window.requestAnimationFrame(() => { pointerFrame = null; detectImage(latestPointerEvent); });
   }, true);
-  function engage() { engaged = true; clearTimeout(timer); clearTimeout(leaveTimer); }
+  function engage() { engaged = true; clearTimeout(timer); clearTimeout(leaveTimer); leaveTimer = null; }
+  host.addEventListener("pointerleave", () => { pointerInPanel = false; candidate = null; scheduleClose(); });
+  document.addEventListener("pointerout", event => { if (!event.relatedTarget) { pointerInPanel = false; candidate = null; clearTimeout(timer); scheduleClose(); } }, true);
   host.addEventListener("pointerenter", engage);
   root.addEventListener("focusin", engage);
   root.addEventListener("pointerdown", engage);
